@@ -150,7 +150,7 @@
             imagen2: ['imagen2', 'imagen 2', 'foto2'],
             imagen3: ['imagen3', 'imagen 3', 'foto3'],
             video1: ['video1', 'video 1'],
-            precio: ['precio de venta', 'precio', 'costo'],
+            precio: ['precio de venta', 'precio'], // Quité "costo" para evitar confusiones
             detalles: ['descripcion del producto', 'descripción del producto', 'detalles']
         };
 
@@ -199,15 +199,33 @@
                 table.rows.shift(); // Eliminamos esa fila de la tabla para no procesarla como producto
             }
 
-            // Encontrar índices de columnas: Primero búsqueda exacta, luego parcial
+            // Encontrar índices de columnas: Búsqueda mejorada para evitar confusiones de columnas
             let indices = {};
             for (const key in colMap) {
-                let exactMatch = headers.findIndex(h => colMap[key].some(alias => h === alias));
-                if (exactMatch !== -1) {
-                    indices[key] = exactMatch;
-                } else {
-                    indices[key] = headers.findIndex(h => colMap[key].some(alias => h.includes(alias)));
+                indices[key] = -1;
+                // 1. Buscar coincidencia exacta priorizando nuestro orden
+                for (const alias of colMap[key]) {
+                    let exactIdx = headers.findIndex(h => h === alias);
+                    if (exactIdx !== -1) {
+                        indices[key] = exactIdx;
+                        break;
+                    }
                 }
+                // 2. Buscar coincidencia parcial si falla la exacta
+                if (indices[key] === -1) {
+                    for (const alias of colMap[key]) {
+                        let partialIdx = headers.findIndex(h => h.includes(alias) && !h.includes('compra') && !h.includes('costo'));
+                        if (partialIdx !== -1) {
+                            indices[key] = partialIdx;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // FORZAR COLUMNA P (Índice 15) para el precio si sigue sin encontrarla por el nombre
+            if (indices.precio === -1) {
+                indices.precio = 15;
             }
 
             products = [];
@@ -234,8 +252,8 @@
                     let precioLimpio = 0;
                     if (typeof rawPrecio === 'number') {
                         precioLimpio = rawPrecio;
-                    } else if (typeof rawPrecio === 'string') {
-                        let extracted = rawPrecio.replace(/,/g, '').match(/\d+(\.\d+)?/);
+                    } else if (rawPrecio !== null && rawPrecio !== undefined) {
+                        let extracted = String(rawPrecio).replace(/,/g, '').match(/\d+(\.\d+)?/);
                         if (extracted) precioLimpio = parseFloat(extracted[0]);
                     }
 
