@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuestra Tienda</title>
+    <!-- Tailwind CSS para diseño rápido y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome para íconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Estilos personalizados para animaciones suaves */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800">
+
+    <!-- Navbar -->
+    <nav class="bg-white shadow-md fixed w-full z-40 top-0">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex-shrink-0 flex items-center">
+                    <img src="https://i.postimg.cc/DZ1Pj37X/1509276947230.jpg" alt="Logo de la Tienda" class="h-12 w-12 object-cover rounded-full shadow-sm mr-3">
+                    <span class="font-bold text-xl text-gray-800">Mi Tienda</span>
+                </div>
+                <div class="flex items-center">
+                    <button onclick="toggleCart()" class="relative p-2 text-gray-600 hover:text-indigo-600 transition">
+                        <i class="fas fa-shopping-cart text-2xl"></i>
+                        <span id="cart-count" class="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow">0</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contenido Principal -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
+        
+        <!-- Estado de Carga -->
+        <div id="loader" class="flex flex-col items-center justify-center py-20">
+            <i class="fas fa-spinner fa-spin text-4xl text-indigo-600 mb-4"></i>
+            <p class="text-gray-500 font-medium">Cargando catálogo desde Google Sheets...</p>
+        </div>
+
+        <!-- Mensaje de Error -->
+        <div id="error-msg" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <strong class="font-bold">¡Ups!</strong>
+            <span class="block sm:inline">Hubo un error al cargar los datos. Verifica el enlace de tu hoja de cálculo.</span>
+        </div>
+
+        <!-- Contenedor Principal (oculto hasta cargar) -->
+        <div id="main-content" class="hidden fade-in">
+            <!-- Categorías -->
+            <div class="mb-8">
+                <h2 class="text-lg font-bold text-gray-700 mb-3">Categorías</h2>
+                <div id="categories-container" class="flex space-x-2 overflow-x-auto hide-scroll pb-2">
+                    <!-- Se llenará dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Grid de Productos -->
+            <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <!-- Se llenará dinámicamente -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal del Carrito -->
+    <div id="cart-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex justify-end">
+        <div class="bg-white w-full max-w-md h-full shadow-2xl flex flex-col fade-in">
+            <div class="flex justify-between items-center p-4 border-b">
+                <div class="flex items-center">
+                    <img src="https://i.postimg.cc/DZ1Pj37X/1509276947230.jpg" alt="Logo de la Tienda" class="h-8 w-8 object-cover rounded-full shadow-sm mr-2">
+                    <h2 class="text-xl font-bold text-gray-800">Tu Pedido</h2>
+                </div>
+                <button onclick="toggleCart()" class="text-gray-500 hover:text-red-500 transition text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div id="cart-items" class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- Items del carrito -->
+                <p class="text-gray-500 text-center mt-10">Tu carrito está vacío.</p>
+            </div>
+
+            <div class="border-t p-4 bg-gray-50">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="font-bold text-lg text-gray-700">Total:</span>
+                    <span id="cart-total" class="font-bold text-2xl text-indigo-600">$0.00</span>
+                </div>
+                
+                <!-- Datos del cliente para el pedido -->
+                <div class="space-y-3 mb-4">
+                    <input type="text" id="client-name" placeholder="Tu Nombre" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" id="client-phone" placeholder="Tu Teléfono (Opcional)" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    
+                    <select id="delivery-type" onchange="toggleAddressVisibility()" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-gray-700">
+                        <option value="Envío a domicilio">Envío a domicilio</option>
+                        <option value="Recoge en tienda">Recoge en tienda</option>
+                    </select>
+
+                    <input type="text" id="client-address" placeholder="Dirección de Entrega" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-300">
+                </div>
+
+                <button onclick="sendOrder()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg flex justify-center items-center transition shadow-lg">
+                    <i class="fab fa-whatsapp text-xl mr-2"></i> Enviar Pedido
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Detalles del Producto -->
+    <div id="product-modal" class="fixed inset-0 bg-black bg-opacity-70 z-50 hidden flex justify-center items-center p-4">
+        <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden fade-in flex flex-col max-h-[90vh]">
+            <div class="flex justify-end p-2 absolute right-0 top-0">
+                <button onclick="closeProductModal()" class="bg-white rounded-full p-2 text-gray-800 hover:text-red-500 shadow">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div id="modal-content" class="overflow-y-auto">
+                <!-- Se llena dinámicamente -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // === CONFIGURACIÓN ===
+        const SHEET_ID = '1V31kLDde7r-0vPvMIzegMcs7mYv3WjOhFuQt84B1Vlg';
+        const SHEET_NAME = 'Articulos';
+        const WHATSAPP_NUMBER = '525550504444';
+        
+        // URL DEL GOOGLE APPS SCRIPT PARA GUARDAR VENTAS
+        const URL_GOOGLE_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycby-ku0IOmqigcysaJwapIF3db3ylWbEGEb-xxQyxz1Mui0Aq9D_pXjBjR1zlE2jqEzd/exec'; 
+
+        // Variables globales
+        let products = [];
+        let categories = [];
+        let currentCategory = 'Todas';
+        let cart = {}; 
+
+        // Mapeo de columnas a buscar en Google Sheets (ignorando mayúsculas/minúsculas)
+        const colMap = {
+            categoria: ['categoria', 'categoría'],
+            descripcion: ['descripcion', 'descripción', 'nombre', 'articulo'],
+            inventario: ['inventario', 'stock', 'cantidad'],
+            imagen1: ['imagen1', 'imagen 1', 'foto1'],
+            imagen2: ['imagen2', 'imagen 2', 'foto2'],
+            imagen3: ['imagen3', 'imagen 3', 'foto3'],
+            video1: ['video1', 'video 1'],
+            precio: ['precio de venta', 'precio', 'costo'],
+            detalles: ['descripcion del producto', 'descripción del producto', 'detalles']
+        };
+
+        // Función para convertir links de Google Drive a links directos de imagen
+        function getDirectImageUrl(url) {
+            if (!url || typeof url !== 'string') return '';
+            // Busca el ID del archivo en el enlace de Drive
+            const driveRegex = /drive\.google\.com\/(?:file\/d\/|open\?id=)([-\w]+)/;
+            const match = url.match(driveRegex);
+            if (match && match[1]) {
+                // Nuevo método: Usamos el endpoint de 'thumbnail' de Google Drive con un tamaño grande (w800 = 800px)
+                // Esto suele evitar el bloqueo de "hotlinking" que Google aplicó recientemente a los enlaces 'uc?export=view'
+                return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w800`;
+            }
+            return url; // Si no es de Drive (ej. Imgur o link directo), lo deja igual
+        }
+
+        // Iniciar
+        document.addEventListener('DOMContentLoaded', fetchDatos);
+
+        async function fetchDatos() {
+            const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+            
+            try {
+                const response = await fetch(url);
+                const text = await response.text();
+                // Google devuelve el JSON con un prefijo raro, lo quitamos
+                const jsonString = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+                const data = JSON.parse(jsonString);
+                
+                procesarDatos(data.table);
+            } catch (error) {
+                console.error("Error al obtener datos:", error);
+                document.getElementById('loader').classList.add('hidden');
+                document.getElementById('error-msg').classList.remove('hidden');
+            }
+        }
+
+        function procesarDatos(table) {
+            // 1. Obtener Headers (A veces gviz no mapea los headers en 'cols', así que revisamos)
+            let headers = table.cols.map(c => (c && c.label) ? c.label.toLowerCase().trim() : '');
+            
+            // Respaldo: Si todos los labels están vacíos, usamos la primera fila de datos como cabecera
+            if (headers.every(h => h === '')) {
+                headers = table.rows[0].c.map(c => (c && c.v) ? String(c.v).toLowerCase().trim() : '');
+                table.rows.shift(); // Eliminamos esa fila de la tabla para no procesarla como producto
+            }
+
+            // Encontrar índices de columnas: Primero búsqueda exacta, luego parcial
+            let indices = {};
+            for (const key in colMap) {
+                let exactMatch = headers.findIndex(h => colMap[key].some(alias => h === alias));
+                if (exactMatch !== -1) {
+                    indices[key] = exactMatch;
+                } else {
+                    indices[key] = headers.findIndex(h => colMap[key].some(alias => h.includes(alias)));
+                }
+            }
+
+            products = [];
+            categories = new Set();
+
+            table.rows.forEach((row, index) => {
+                const getVal = (idx) => {
+                    if (idx === -1 || !row.c || !row.c[idx]) return '';
+                    let cell = row.c[idx];
+                    if (cell.v !== null && cell.v !== undefined) return cell.v;
+                    if (cell.f !== null && cell.f !== undefined) return cell.f;
+                    return '';
+                };
+                
+                let inventario = parseFloat(getVal(indices.inventario)) || 0;
+
+                // Solo productos con inventario > 0
+                if (inventario > 0) {
+                    let cat = getVal(indices.categoria) || 'Sin Categoría';
+                    categories.add(cat);
+
+                    // Limpiar formato de moneda en el precio de forma más segura
+                    let rawPrecio = getVal(indices.precio);
+                    let precioLimpio = 0;
+                    if (typeof rawPrecio === 'number') {
+                        precioLimpio = rawPrecio;
+                    } else if (typeof rawPrecio === 'string') {
+                        let extracted = rawPrecio.replace(/,/g, '').match(/\d+(\.\d+)?/);
+                        if (extracted) precioLimpio = parseFloat(extracted[0]);
+                    }
+
+                    products.push({
+                        id: `prod_${index}`,
+                        categoria: cat,
+                        descripcion: getVal(indices.descripcion),
+                        inventario: inventario,
+                        imagen1: getDirectImageUrl(getVal(indices.imagen1)),
+                        imagen2: getDirectImageUrl(getVal(indices.imagen2)),
+                        imagen3: getDirectImageUrl(getVal(indices.imagen3)),
+                        video1: getVal(indices.video1), // Para videos se recomienda link directo mp4
+                        precio: precioLimpio,
+                        detalles: getVal(indices.detalles)
+                    });
+                }
+            });
+
+            categories = ['Todas', ...Array.from(categories).sort()];
+            
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('main-content').classList.remove('hidden');
+            
+            renderCategories();
+            renderProducts();
+        }
+
+        function renderCategories() {
+            const container = document.getElementById('categories-container');
+            container.innerHTML = '';
+
+            categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = `px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition ${currentCategory === cat ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-indigo-50 border border-gray-200'}`;
+                btn.innerText = cat;
+                btn.onclick = () => {
+                    currentCategory = cat;
+                    renderCategories();
+                    renderProducts();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function renderProducts() {
+            const grid = document.getElementById('products-grid');
+            grid.innerHTML = '';
+
+            const filtered = currentCategory === 'Todas' ? products : products.filter(p => p.categoria === currentCategory);
+
+            if(filtered.length === 0) {
+                grid.innerHTML = `<p class="text-gray-500 col-span-full text-center py-10">No hay productos en esta categoría.</p>`;
+                return;
+            }
+
+            filtered.forEach(p => {
+                let badge = '';
+                if (p.inventario < 10) {
+                    badge = `<span class="absolute top-2 left-2 bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded-md shadow flex items-center"><i class="fas fa-exclamation-triangle mr-1 text-[10px]"></i> ¡Pocas piezas! (${p.inventario})</span>`;
+                }
+
+                const imgPlaceholder = "https://via.placeholder.com/400x300?text=Sin+Imagen";
+                const mainImg = p.imagen1 || imgPlaceholder;
+
+                // Cantidad actual en el carrito para este producto
+                const currentQtyInCart = cart[p.id] ? cart[p.id].quantity : 0;
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl shadow-sm hover:shadow-lg transition overflow-hidden border border-gray-100 flex flex-col relative';
+                card.innerHTML = `
+                    ${badge}
+                    <div class="h-48 w-full bg-gray-100 overflow-hidden cursor-pointer" onclick="openProductModal('${p.id}')">
+                        <img src="${mainImg}" alt="${p.descripcion}" class="w-full h-full object-cover hover:scale-105 transition duration-300" onerror="this.src='${imgPlaceholder}'">
+                    </div>
+                    <div class="p-4 flex flex-col flex-1">
+                        <p class="text-xs text-indigo-500 font-semibold mb-1 uppercase tracking-wide">${p.categoria}</p>
+                        <h3 class="font-bold text-gray-800 text-lg mb-2 leading-tight cursor-pointer hover:text-indigo-600" onclick="openProductModal('${p.id}')">${p.descripcion}</h3>
+                        <p class="font-bold text-xl text-green-600 mt-auto">$${p.precio.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                        
+                        <div class="mt-4 flex items-center justify-between">
+                            ${currentQtyInCart > 0 ? `
+                                <div class="flex items-center space-x-3 bg-gray-100 rounded-lg p-1 w-full justify-between">
+                                    <button onclick="updateCart('${p.id}', -1)" class="w-8 h-8 rounded-md bg-white text-red-500 shadow-sm hover:bg-red-50 font-bold flex items-center justify-center"><i class="fas fa-minus"></i></button>
+                                    <span class="font-bold w-6 text-center text-gray-800">${currentQtyInCart}</span>
+                                    <button onclick="updateCart('${p.id}', 1)" class="w-8 h-8 rounded-md bg-white text-green-500 shadow-sm hover:bg-green-50 font-bold flex items-center justify-center"><i class="fas fa-plus"></i></button>
+                                </div>
+                            ` : `
+                                <button onclick="updateCart('${p.id}', 1)" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-medium transition flex items-center justify-center">
+                                    <i class="fas fa-cart-plus mr-2"></i> Agregar
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // --- FUNCIONES DEL CARRITO ---
+
+        function updateCart(id, change) {
+            const product = products.find(p => p.id === id);
+            if (!product) return;
+
+            if (!cart[id]) {
+                cart[id] = { product: product, quantity: 0 };
+            }
+
+            let newQty = cart[id].quantity + change;
+
+            // Validar inventario
+            if (newQty > product.inventario) {
+                alert(`¡Lo sentimos! Solo tenemos ${product.inventario} piezas disponibles de este artículo.`);
+                newQty = product.inventario;
+            }
+
+            if (newQty <= 0) {
+                delete cart[id];
+            } else {
+                cart[id].quantity = newQty;
+            }
+
+            updateCartUI();
+            renderProducts(); // Re-renderizar para actualizar botones
+        }
+
+        function updateCartUI() {
+            let totalItems = 0;
+            let totalPrice = 0;
+            const cartContainer = document.getElementById('cart-items');
+            cartContainer.innerHTML = '';
+
+            const cartKeys = Object.keys(cart);
+
+            if (cartKeys.length === 0) {
+                cartContainer.innerHTML = '<div class="text-center text-gray-500 mt-10"><i class="fas fa-shopping-basket text-4xl mb-3 opacity-50"></i><p>Tu carrito está vacío.</p></div>';
+            } else {
+                cartKeys.forEach(id => {
+                    const item = cart[id];
+                    totalItems += item.quantity;
+                    totalPrice += (item.product.precio * item.quantity);
+
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center border-b pb-3';
+                    const imgPlaceholder = "https://via.placeholder.com/100?text=No+Img";
+                    
+                    div.innerHTML = `
+                        <img src="${item.product.imagen1 || imgPlaceholder}" class="w-16 h-16 object-cover rounded-md" onerror="this.src='${imgPlaceholder}'">
+                        <div class="ml-3 flex-1">
+                            <h4 class="text-sm font-bold text-gray-800 leading-tight">${item.product.descripcion}</h4>
+                            <p class="text-indigo-600 font-bold text-sm">$${item.product.precio.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                        </div>
+                        <div class="flex items-center space-x-2 bg-gray-100 rounded-md p-1">
+                            <button onclick="updateCart('${id}', -1)" class="w-6 h-6 bg-white rounded text-gray-600 hover:text-red-500 flex justify-center items-center shadow-sm"><i class="fas fa-minus text-xs"></i></button>
+                            <span class="text-sm font-bold w-4 text-center">${item.quantity}</span>
+                            <button onclick="updateCart('${id}', 1)" class="w-6 h-6 bg-white rounded text-gray-600 hover:text-green-500 flex justify-center items-center shadow-sm"><i class="fas fa-plus text-xs"></i></button>
+                        </div>
+                    `;
+                    cartContainer.appendChild(div);
+                });
+            }
+
+            document.getElementById('cart-count').innerText = totalItems;
+            document.getElementById('cart-total').innerText = `$${totalPrice.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+
+        function toggleCart() {
+            const modal = document.getElementById('cart-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        function toggleAddressVisibility() {
+            const deliveryType = document.getElementById('delivery-type').value;
+            const addressInput = document.getElementById('client-address');
+            if (deliveryType === 'Recoge en tienda') {
+                addressInput.classList.add('hidden');
+                addressInput.value = ''; // Limpiar el campo
+            } else {
+                addressInput.classList.remove('hidden');
+            }
+        }
+
+        // --- DETALLES DEL PRODUCTO ---
+        function openProductModal(id) {
+            const p = products.find(prod => prod.id === id);
+            if (!p) return;
+
+            const modal = document.getElementById('product-modal');
+            const content = document.getElementById('modal-content');
+            
+            let mediaHtml = '';
+            
+            // Video si existe
+            if(p.video1) {
+                mediaHtml += `
+                    <div class="w-full aspect-video bg-black flex items-center justify-center mb-2 rounded-t-xl overflow-hidden">
+                        <video controls class="w-full h-full object-contain">
+                            <source src="${p.video1}" type="video/mp4">
+                            Tu navegador no soporta videos.
+                        </video>
+                    </div>
+                `;
+            }
+
+            // Imágenes
+            let images = [p.imagen1, p.imagen2, p.imagen3].filter(img => img && img.trim() !== '');
+            if(images.length > 0) {
+                mediaHtml += `<div class="flex overflow-x-auto space-x-2 p-4 bg-gray-50 hide-scroll ${p.video1 ? '' : 'rounded-t-xl'}">`;
+                images.forEach(img => {
+                    mediaHtml += `<img src="${img}" class="h-48 w-auto object-cover rounded shadow border" onerror="this.style.display='none'">`;
+                });
+                mediaHtml += `</div>`;
+            }
+
+            content.innerHTML = `
+                ${mediaHtml}
+                <div class="p-6">
+                    <p class="text-sm text-indigo-500 font-semibold mb-1">${p.categoria}</p>
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">${p.descripcion}</h2>
+                    <p class="text-3xl font-bold text-green-600 mb-4">$${p.precio.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                    
+                    <div class="mb-6">
+                        <h4 class="font-bold text-gray-700 mb-2 border-b pb-1">Descripción</h4>
+                        <p class="text-gray-600 text-sm whitespace-pre-line">${p.detalles || 'Sin descripción detallada.'}</p>
+                    </div>
+
+                    <div class="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+                        <span class="text-sm text-gray-500">Disponible: <b>${p.inventario} uds.</b></span>
+                        <button onclick="updateCart('${p.id}', 1); closeProductModal(); toggleCart();" class="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-6 rounded-lg font-bold transition flex items-center">
+                            <i class="fas fa-cart-plus mr-2"></i> Agregar
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+        }
+
+        function closeProductModal() {
+            document.getElementById('product-modal').classList.add('hidden');
+        }
+
+        // --- ENVIAR PEDIDO Y GUARDAR EN GOOGLE SHEETS ---
+
+        async function sendOrder() {
+            const keys = Object.keys(cart);
+            if (keys.length === 0) {
+                alert("Tu carrito está vacío.");
+                return;
+            }
+
+            const clientName = document.getElementById('client-name').value.trim() || 'Cliente';
+            const clientPhone = document.getElementById('client-phone').value.trim() || 'No proporcionado';
+            const deliveryType = document.getElementById('delivery-type').value;
+            const clientAddress = document.getElementById('client-address').value.trim() || (deliveryType === 'Recoge en tienda' ? 'N/A' : 'No proporcionada');
+
+            let total = 0;
+            let textMsg = `Hola, mi nombre es *${clientName}*. Me gustaría hacer el siguiente pedido:\n\n`;
+            let arrayProductos = [];
+
+            keys.forEach(id => {
+                const item = cart[id];
+                const subtotal = item.quantity * item.product.precio;
+                total += subtotal;
+                textMsg += `▪ ${item.quantity}x ${item.product.descripcion} ($${item.product.precio.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})} c/u) = $${subtotal.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}\n`;
+                
+                // Array limpio para guardar en BD
+                arrayProductos.push(`${item.quantity}x ${item.product.descripcion}`);
+            });
+
+            textMsg += `\n*TOTAL: $${total.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}*\n\n*Tipo de entrega:* ${deliveryType}`;
+            if (deliveryType === 'Envío a domicilio') {
+                textMsg += `\n*Dirección de entrega:* ${clientAddress}`;
+            }
+
+            // 1. INTENTAR GUARDAR EN GOOGLE SHEETS "VENTAS"
+            if (URL_GOOGLE_APPS_SCRIPT) {
+                try {
+                    const dataToSave = {
+                        fecha: new Date().toLocaleString('es-MX'),
+                        cliente: clientName,
+                        telefono: clientPhone,
+                        tipo_entrega: deliveryType,
+                        direccion: clientAddress,
+                        pedido: arrayProductos.join(" | "),
+                        total: total
+                    };
+
+                    // Hacemos el fetch en modo no-cors porque AppsScript suele dar problemas de CORS al llamar directo.
+                    fetch(URL_GOOGLE_APPS_SCRIPT, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(dataToSave)
+                    });
+                } catch (e) {
+                    console.error("Error al enviar a la BD:", e);
+                }
+            } else {
+                console.warn("No se proporcionó URL de Google Apps Script. El pedido no se guardará en la hoja de Ventas automáticamente.");
+            }
+
+            // 2. ABRIR WHATSAPP
+            const encodedText = encodeURIComponent(textMsg);
+            const waURL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodedText}`;
+            window.open(waURL, '_blank');
+
+            // Opcional: Limpiar el carrito después de enviar
+            cart = {};
+            updateCartUI();
+            renderProducts();
+            toggleCart();
+        }
+
+    </script>
+</body>
+</html>
